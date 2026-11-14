@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Share</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --text:#16181d; --muted:#6b7280; --line:#e5e7eb; --blue:#1877f2; --green:#16a34a; --red:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#181b21; --text:#e8eaed; --muted:#9aa0a6; --line:#2a2e36; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0 0 12px; }
+  .items { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  .item { display:flex; flex-direction:column; gap:8px; border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .item.on { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue); }
+  .item .top { display:flex; align-items:center; gap:8px; }
+  .item .top label { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer; }
+  .item .top .del { margin-left:auto; padding:4px 10px; font-size:13px; background:transparent; color:var(--red); }
+  .item input[type=text], .item input[type=url] { width:100%; background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:14px inherit; }
+  .item input[type=text] { font-weight:600; }
+  .item input.bad { border-color:var(--red); }
+  .item textarea { min-height:80px; font:14px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; }
+  .item a { font-size:13px; color:var(--blue); }
+  .saved { font-size:13px; color:var(--green); }
+  .gstatus { list-style:none; margin:10px 0 0; padding:0; font-size:13px; max-height:220px; overflow:auto; }
+  .gstatus li { display:flex; gap:8px; padding:4px 0; border-top:1px solid var(--line); }
+  .gstatus .url { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+  .gstatus .done { color:var(--green); white-space:nowrap; }
+  .gstatus .todo { color:var(--muted); white-space:nowrap; }
+  textarea { width:100%; min-height:110px; background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font:13px ui-monospace, Menlo, monospace; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  button { border:0; border-radius:10px; padding:10px 14px; font:600 15px inherit; cursor:pointer; background:var(--line); color:var(--text); }
+  .big { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .big button { padding:22px; font-size:18px; color:#fff; }
+  #shareBtn { background:var(--blue); }
+  #bumpBtn { background:var(--green); }
+  #stopBtn { background:var(--red); color:#fff; }
+  #log { background:#0b0d10; color:#cfd6df; border-radius:8px; padding:12px; height:260px; overflow:auto; font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; margin:0; }
+  .hint { font-size:13px; color:var(--muted); }
+  @media (max-width:560px) { .big { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Auto Share</h1>
+  <p class="sub">Share your Facebook posts to all your groups in one click.</p>
+
+  <div class="card">
+    <h2>1 · Facebook login</h2>
+    <div class="row" style="margin-top:0">
+      <button id="loginBtn">Log in to Facebook</button>
+      <span class="hint">Only needed the first time. A Chrome window opens, so log in there and leave it open.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · What to share</h2>
+    <div class="items" id="items"></div>
+    <div class="row">
+      <button id="addBtn">+ Add post link</button>
+      <button id="saveItemsBtn">Save</button>
+      <span class="saved" id="itemsStatus"></span>
+    </div>
+    <p class="hint">Open your post on Facebook → click its time stamp (or ⋯ → Copy link) → paste the link here.</p>
+  </div>
+
+  <div class="card">
+    <h2>3 · Groups <span id="gcount"></span></h2>
+    <textarea id="groups" placeholder="https://www.facebook.com/groups/123456789&#10;https://www.facebook.com/groups/mongolia.buysell"></textarea>
+    <div class="row"><button id="saveBtn">Save groups</button><span class="hint">One link per line.</span></div>
+    <div class="row">
+      <span id="sharedSummary" class="hint"></span>
+      <button id="openSharedBtn">Open all shared groups</button>
+      <button id="clearSharedBtn">Clear history</button>
+    </div>
+    <ul id="groupStatus" class="gstatus"></ul>
+  </div>
+
+  <div class="card">
+    <div class="big">
+      <button id="shareBtn">🔗 Share to all groups</button>
+      <button id="bumpBtn">🔁 Bump my posts</button>
+    </div>
+    <div class="row"><button id="stopBtn">Stop</button><span class="hint">Waits 2–4s between groups so Facebook doesn't flag you.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Leave groups <span id="lcount"></span></h2>
+    <p class="hint" style="margin-top:0">Load the groups you're in, delete the lines for any you want to <b>keep</b>, then press Leave. Leaving can't be undone — you'd have to ask to join again.</p>
+    <textarea id="leaveList" placeholder="Press &quot;Load my joined groups&quot;, or paste group links here, one per line."></textarea>
+    <div class="row">
+      <button id="loadJoinedBtn">Load my joined groups</button>
+      <button id="leaveBtn" style="background:var(--red);color:#fff">👋 Leave all listed</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const api = (p, data) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+
+let items = [];
+const selected = new Set();
+let dirty = false;
+function markDirty() { dirty = true; $('itemsStatus').textContent = 'Unsaved changes'; $('itemsStatus').style.color = 'var(--muted)'; }
+const isFbLink = (s) => { try { return /(^|\.)facebook\.com$|(^|\.)fb\.watch$/.test(new URL(s).hostname); } catch { return false; } };
+
+function el(tag, props = {}, ...kids) {
+  const e = Object.assign(document.createElement(tag), props);
+  kids.forEach((k) => k && e.append(k));
+  return e;
+}
+
+function renderItems() {
+  const wrap = $('items');
+  wrap.replaceChildren();
+  items.forEach((it, i) => {
+    const card = el('div', { className: 'item' + (selected.has(it.id) ? ' on' : '') });
+
+    const check = el('input', { type: 'checkbox', checked: selected.has(it.id) });
+    check.onchange = () => { check.checked ? selected.add(it.id) : selected.delete(it.id); card.classList.toggle('on', check.checked); };
+    const del = el('button', { className: 'del', textContent: 'Delete' });
+    del.onclick = () => { if (confirm(`Delete "${it.title}"?`)) { items.splice(i, 1); selected.delete(it.id); markDirty(); renderItems(); } };
+    card.append(el('div', { className: 'top' }, el('label', {}, check, 'Share this'), del));
+
+    const title = el('input', { type: 'text', value: it.title, placeholder: 'Name (only shown here)' });
+    title.oninput = () => { it.title = title.value; markDirty(); };
+    const link = el('input', { type: 'url', value: it.link, placeholder: 'https://www.facebook.com/…/posts/…' });
+    const open = el('a', { href: it.link || '#', target: '_blank', rel: 'noopener', textContent: 'Open post ↗' });
+    const check2 = () => { link.classList.toggle('bad', !!link.value && !isFbLink(link.value)); open.href = link.value || '#'; open.hidden = !isFbLink(link.value); };
+    link.oninput = () => { it.link = link.value.trim(); markDirty(); check2(); };
+    check2();
+    const text = el('textarea', { value: it.text, placeholder: 'Message above the link (optional): price, phone…' });
+    text.oninput = () => { it.text = text.value; markDirty(); };
+    card.append(title, link, open, text);
+
+    wrap.append(card);
+  });
+}
+
+async function saveItems() {
+  const r = await api('/api/shares', { shares: items });
+  if (!r.ok) throw new Error(`Saving failed (${r.status}). Restart the app: Ctrl+C in the terminal, then npm start.`);
+  items = (await r.json()).shares;
+  dirty = false;
+  $('itemsStatus').textContent = '✓ Saved'; $('itemsStatus').style.color = 'var(--green)';
+}
+
+let shared = {};
+const groupKey = (u) => { const m = u.match(/\/groups\/([^/?#\s]+)/); return m ? `https://www.facebook.com/groups/${m[1]}` : null; };
+
+function renderGroupStatus() {
+  const groups = groupsFromBox().filter((g) => !g.startsWith('#'));
+  const chosen = items.filter((it) => selected.has(it.id));
+  let doneCount = 0;
+  $('groupStatus').replaceChildren(...groups.map((g) => {
+    const k = groupKey(g);
+    const times = chosen.map((it) => k && shared[`${k}|${it.id}`]).filter(Boolean);
+    const allDone = chosen.length > 0 && times.length === chosen.length;
+    if (allDone) doneCount++;
+    const status = allDone
+      ? el('span', { className: 'done', textContent: `✓ shared ${new Date(times.sort().pop()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` })
+      : el('span', { className: 'todo', textContent: times.length ? `${times.length}/${chosen.length} shared` : 'not shared yet' });
+    return el('li', {}, el('span', { className: 'url', textContent: g }), status);
+  }));
+  $('sharedSummary').textContent = doneCount
+    ? `${doneCount} of ${groups.length} groups already shared. They'll be skipped.`
+    : 'No groups shared yet.';
+}
+
+async function load() {
+  const s = await (await fetch('/api/state')).json();
+  $('groups').value = s.groups.join('\n');
+  $('gcount').textContent = `(${s.groups.length})`;
+  items = s.shares;
+  shared = s.shared || {};
+  items.forEach((it) => selected.add(it.id));
+  renderItems();
+  renderGroupStatus();
+}
+
+async function refreshShared() {
+  const s = await (await fetch('/api/state')).json();
+  shared = s.shared || {};
+  renderGroupStatus();
+}
+
+$('groups').addEventListener('input', renderGroupStatus);
+$('items').addEventListener('change', renderGroupStatus);
+$('openSharedBtn').onclick = () => api('/api/shared/open');
+$('clearSharedBtn').onclick = async () => {
+  if (!confirm('Clear history? Every group will get the share again next time.')) return;
+  await api('/api/shared/clear');
+  refreshShared();
+};
+
+$('addBtn').onclick = () => {
+  const it = { id: `item${Date.now().toString(36)}`, title: 'New post', link: '', text: '' };
+  items.push(it); selected.add(it.id); markDirty(); renderItems();
+};
+$('saveItemsBtn').onclick = saveItems;
+window.addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
+
+function groupsFromBox() { return $('groups').value.split('\n').map((s) => s.trim()).filter(Boolean); }
+async function saveGroups() {
+  const g = groupsFromBox();
+  await api('/api/groups', { groups: g });
+  $('gcount').textContent = `(${g.length})`;
+}
+
+$('loginBtn').onclick = () => api('/api/login');
+$('saveBtn').onclick = saveGroups;
+$('shareBtn').onclick = async () => {
+  await saveGroups();
+  if (dirty) await saveItems();
+  const chosen = items.filter((it) => selected.has(it.id));
+  if (!chosen.length) return alert('Tick at least one post to share.');
+  const bad = chosen.find((it) => !isFbLink(it.link));
+  if (bad) return alert(`"${bad.title}" needs a Facebook post link.`);
+  const n = groupsFromBox().filter((g) => !g.startsWith('#')).length;
+  if (!confirm(`Share ${chosen.length} post(s) to ${n} group(s)?`)) return;
+  api('/api/share', { shareIds: chosen.map((it) => it.id) });
+};
+$('bumpBtn').onclick = async () => { await saveGroups(); api('/api/bump'); };
+$('stopBtn').onclick = () => api('/api/stop');
+
+const leaveFromBox = () => $('leaveList').value.split('\n').map((s) => s.trim()).filter((s) => s && !s.startsWith('#'));
+const updateLeaveCount = () => { $('lcount').textContent = `(${leaveFromBox().length})`; };
+$('leaveList').addEventListener('input', updateLeaveCount);
+$('loadJoinedBtn').onclick = async () => {
+  $('loadJoinedBtn').textContent = 'Loading…';
+  try {
+    const r = await (await api('/api/joined')).json();
+    if (r.groups.length) { $('leaveList').value = r.groups.join('\n'); updateLeaveCount(); }
+  } finally { $('loadJoinedBtn').textContent = 'Load my joined groups'; }
+};
+$('leaveBtn').onclick = () => {
+  const g = leaveFromBox();
+  if (!g.length) return alert('The leave list is empty.');
+  const typed = prompt(`This will LEAVE ${g.length} Facebook group(s). Type LEAVE to confirm.`);
+  if (typed !== 'LEAVE') return;
+  api('/api/leave', { groups: g, confirm: 'LEAVE' });
+};
+
+function showError(e) {
+  const msg = (e && (e.reason || e.error || e).message) || String(e);
+  $('log').textContent += `❌ ${msg}\n`;
+  alert(msg);
+}
+window.addEventListener('unhandledrejection', showError);
+window.addEventListener('error', showError);
+
+const es = new EventSource('/api/log');
+es.onmessage = (e) => {
+  const line = JSON.parse(e.data);
+  const box = $('log'); box.textContent += line + '\n'; box.scrollTop = box.scrollHeight;
+  if (/✅ shared|Done\.|history cleared/.test(line)) refreshShared();
+};
+
+load();
+</script>
+</body>
+</html>
